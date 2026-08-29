@@ -1,0 +1,21 @@
+# secrets / env
+.env
+*.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# database (generated at runtime, not committed)
+*.db
+pulselog.db
+
+# go
+go-cache-cron/cachecron
+go-cache-cron/*.exe
+
+# misc
+.DS_Store
+*.log

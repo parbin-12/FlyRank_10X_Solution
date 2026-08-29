@@ -1,0 +1,35 @@
+services:
+  api:
+    build: ./python-api
+    ports:
+      - "8000:8000"
+    environment:
+      PULSELOG_JWT_SECRET: dev-secret-change-me-in-prod
+      PULSELOG_DB_PATH: /app/data/pulselog.db
+      # Optional: set a real key to get real LLM summaries instead of the local fallback.
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - pulselog_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  cache-cron:
+    build: ./go-cache-cron
+    ports:
+      - "9000:9000"
+    environment:
+      PULSELOG_API_BASE: http://api:8000
+      PULSELOG_SERVICE_IDS: "1"
+      PULSELOG_REFRESH_SECONDS: "30"
+      # No token needed: the Go service logs in itself with the demo account below.
+      PULSELOG_API_EMAIL: demo@pulselog.dev
+      PULSELOG_API_PASSWORD: demo1234
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pulselog_data:

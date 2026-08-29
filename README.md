@@ -1,22 +1,14 @@
 # PulseLog
 
-**FlyRank Internship — Backend Track — "Praveen yadav.**
+**FlyRank Internship — Backend Track — Praveen Yadav**
 
-PulseLog turns raw service logs into an instant, trustworthy status report.
-Point it at a service's events (INFO/WARN/ERROR), and it gives you back
-uptime-style stats, an AI-written incident summary, and a one-click PDF —
-the report a backend engineer usually assembles by hand once a week.
+PulseLog takes raw service logs and turns them into a status report you can actually trust. You point it at a service's events (INFO/WARN/ERROR), and it hands back uptime-style stats, an AI-written incident summary, and a one-click PDF — basically the report a backend engineer usually has to piece together by hand once a week.
 
-**The 10x claim:** pulling together "what broke this week and why" from raw
-logs by hand takes a person roughly **20 minutes** (grep, count, skim,
-write it up). PulseLog produces the same report in **under 2 seconds**
-(`POST /reports/1` → PDF), and the underlying stats are served **instantly**
-from cache the rest of the time instead of being recomputed per request.
+**The 10x claim:** doing this by hand — grepping, counting, skimming, writing it all up — takes about **20 minutes**. PulseLog spits out the same report in **under 2 seconds** (`POST /reports/1` → PDF), and the stats behind it are served **instantly** from cache the rest of the time instead of being recomputed on every request.
 
 ## Architecture
 
-Two small services, on purpose — this is a walking skeleton, not a
-microservices showcase:
+Two small services, on purpose — this is meant to be a walking skeleton, not a microservices showcase:
 
 ```
 ┌─────────────────┐         ┌──────────────────────┐
@@ -30,15 +22,8 @@ microservices showcase:
 └─────────────────┘         └──────────────────────┘
 ```
 
-- **`python-api/`** — the system of record. Owns the database, auth, log
-  ingestion, the expensive stats aggregation, the LLM summary job, and PDF
-  report generation.
-- **`go-cache-cron/`** — a background worker with no state of its own. Every
-  `PULSELOG_REFRESH_SECONDS` (default 30s) it calls the Python API's
-  `/stats/{id}` endpoint for each configured service and caches the result
-  in memory, so reads from `/cache/stats/{id}` are instant regardless of how
-  slow the underlying aggregation is. It logs itself into the API on
-  startup using the demo account — no manual token-copying required.
+- **`python-api/`** — this is the system of record. It owns the database, auth, log ingestion, the expensive stats aggregation, the LLM summary job, and PDF report generation.
+- **`go-cache-cron/`** — a background worker with no state of its own. Every `PULSELOG_REFRESH_SECONDS` (default 30s) it hits the Python API's `/stats/{id}` endpoint for each configured service and caches the result in memory, so reads from `/cache/stats/{id}` come back instantly no matter how slow the underlying aggregation is. It logs itself into the API on startup using the demo account, so there's no manual token-copying involved.
 
 ## Concepts implemented (all 7 core concepts, 0 swaps — 2 more than required)
 
@@ -50,17 +35,13 @@ microservices showcase:
 | 4 | Background jobs / cron | `go-cache-cron/main.go` (`runCronLoop`) — `time.Ticker` refreshes every service's stats on a fixed schedule, off the request path |
 | 5 | Reporting (PDF) | `python-api/app/reports.py` + `POST /reports/{id}` — generates a real PDF with `reportlab` |
 | 6 | Caching logic | `go-cache-cron/main.go` (`statsCache`) — the expensive `/stats/{id}` result is stored and served from memory via `/cache/stats/{id}`, with `X-Cache-Status` / `X-Cache-Age-Seconds` headers |
-| 7 | LLM integration | `python-api/app/llm.py` + `POST /llm/summarize` — narrow job (log lines → incident summary), input-length validation, cost logged to `llm_cost_log` table |
+| 7 | LLM integration | `python-api/app/llm.py` + `POST /llm/summarize` — a narrow job (log lines → incident summary), with input-length validation, and cost logged to the `llm_cost_log` table |
 
-No swaps were needed — the seven core concepts mapped cleanly onto the
-problem, so the second table in the brief wasn't used.
+No swaps were needed here — the seven core concepts mapped cleanly onto the problem, so I didn't end up touching the second table in the brief.
 
 ## Non-goal
 
-PulseLog does **not** try to be a log *shipping* pipeline (no agents, no
-Kafka, no log tailing from real servers). It assumes events arrive via a
-simple `POST /events` call. Wiring up a real log shipper is future work,
-not part of this capstone.
+PulseLog isn't trying to be a log *shipping* pipeline — no agents, no Kafka, no tailing logs off real servers. It just assumes events show up via a simple `POST /events` call. A real log shipper is future work, not something this capstone covers.
 
 ## Run it — Docker (recommended, one command)
 
@@ -73,8 +54,7 @@ Then:
 - Cached stats: http://localhost:9000/cache/stats/1
 - Cache dashboard: http://localhost:9000/cache/status
 
-The API seeds a demo user and 500 realistic demo events on first startup —
-nothing to set up by hand.
+The API seeds a demo user and 500 realistic demo events on first startup, so there's nothing to set up by hand.
 
 Demo login: `demo@pulselog.dev` / `demo1234`
 
@@ -93,23 +73,17 @@ cd go-cache-cron
 go build -o cachecron .
 ./cachecron
 ```
-It will auto-login with the demo account and start polling `/stats/1` every 30s.
+It'll auto-login with the demo account and start polling `/stats/1` every 30s.
 
 ## 5-minute demo path
 
 1. Start both services (Docker or manual, above).
-2. Open http://localhost:8000/docs, `POST /auth/login` with the demo
-   credentials, copy the `access_token`.
-3. Click "Authorize" in the Swagger UI, paste `Bearer <token>`.
+2. Open http://localhost:8000/docs, `POST /auth/login` with the demo credentials, and copy the `access_token`.
+3. Click "Authorize" in the Swagger UI, paste in `Bearer <token>`.
 4. Call `GET /stats/1` — this is the "expensive" aggregation.
-5. Call `GET http://localhost:9000/cache/stats/1` in a browser or curl —
-   same data, served instantly from the Go cache. Check the
-   `X-Cache-Status` response header.
-6. Call `POST /llm/summarize` with `{"service_id": 1}` — see the AI
-   incident summary (works with no API key via a local fallback; set
-   `ANTHROPIC_API_KEY` for a real LLM-written summary).
-7. Call `POST /reports/1` — downloads a PDF report combining stats +
-   the AI summary.
+5. Call `GET http://localhost:9000/cache/stats/1` in a browser or with curl — same data, but served instantly from the Go cache. Check the `X-Cache-Status` response header to confirm.
+6. Call `POST /llm/summarize` with `{"service_id": 1}` to see the AI incident summary (this works with no API key via a local fallback — set `ANTHROPIC_API_KEY` if you want a real LLM-written summary).
+7. Call `POST /reports/1` to download a PDF report that combines the stats with the AI summary.
 
 ## Environment variables
 
@@ -125,21 +99,15 @@ It will auto-login with the demo account and start polling `/stats/1` every 30s.
 | `PULSELOG_REFRESH_SECONDS` | go-cache-cron | `30` | Cron interval |
 | `PULSELOG_CACHE_PORT` | go-cache-cron | `9000` | Port for the cache HTTP server |
 
-No secrets are committed — see `.gitignore`. Copy the table above into a
-local `.env` if you want to override defaults; nothing here is required to
-run the demo.
+No secrets are committed — see `.gitignore`. Feel free to copy the table above into a local `.env` if you want to override the defaults; none of it is required to just run the demo.
 
 ## Tests
 
-There's no automated test suite in this capstone (it wasn't one of the
-5+ concepts chosen) — the "5-minute demo path" above and the `/docs`
-Swagger UI serve as the manual verification path. A natural next step
-(see "Future ideas") would be a `pytest` suite around `auth.py` and
-`reports.py`, and a Go test around the cache expiry logic.
+There's no automated test suite in this capstone (it wasn't one of the 5+ concepts I chose to build) — the "5-minute demo path" above and the `/docs` Swagger UI are the manual verification path instead. A natural next step (see "Future ideas") would be a `pytest` suite around `auth.py` and `reports.py`, plus a Go test for the cache expiry logic.
 
 ## Future ideas (explicitly out of scope for this capstone)
 
 - Real log shipping agent instead of manual `POST /events`
 - Multi-tenant service groups / teams, not just per-user services
-- Alerting (push a Slack message when ERROR rate crosses a threshold)
+- Alerting (push a Slack message when the ERROR rate crosses a threshold)
 - Swap SQLite for Postgres for real concurrent-write workloads

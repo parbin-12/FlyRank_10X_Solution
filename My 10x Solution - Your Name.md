@@ -1,6 +1,6 @@
 # My 10x Solution — PulseLog
 
-*(Rename this file to `My 10x Solution - praveen kumar yadav.md` )*
+*(`My 10x Solution - praveen kumar yadav.md` )*
 
 ## 1. What problem am I solving?
 
